@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thalamus</title>
+<style>
+  :root{
+    --bg:#07090d; --panel:#0e1219; --panel2:#131822; --raised:#18202c;
+    --line:#1d2531; --line2:#2a3444;
+    --txt:#ccd6e4; --dim:#78849a; --faint:#454f61;
+    --gate:#4fd3ff; --bank:#a78bfa; --fire:#ff6b5a; --ok:#3ddc97; --warn:#ffb454;
+    --me:#4fd3ff; --them:#ffa94d;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",sans-serif;
+    --row:46px;
+  }
+  :root[data-theme="light"]{
+    --bg:#f7f9fc; --panel:#fff; --panel2:#f0f3f8; --raised:#e8edf5;
+    --line:#dde3ec; --line2:#c6d0de;
+    --txt:#1a222e; --dim:#5a6678; --faint:#97a2b3;
+    --gate:#0b8fc4; --bank:#7c4dff; --fire:#d63a28; --ok:#0f9d63; --warn:#b26a00;
+    --me:#0b8fc4; --them:#c2660a;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);
+       font-size:13px;display:flex;flex-direction:column;overflow:hidden}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:var(--line2);border-radius:5px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ── header ─────────────────────────────────────────────── */
+  header{display:flex;align-items:center;gap:14px;padding:9px 14px;flex:none;
+         border-bottom:1px solid var(--line);background:var(--panel)}
+  .brand{font-weight:680;letter-spacing:.15em;font-size:12px;white-space:nowrap}
+  .brand span{color:var(--gate)}
+  .tagline{color:var(--faint);font-size:11px;white-space:nowrap;overflow:hidden;
+           text-overflow:ellipsis;flex:1;min-width:0}
+  .hgroup{display:flex;gap:6px;align-items:center;flex:none}
+
+  .chip{font-family:var(--mono);font-size:10.5px;padding:3px 8px;border-radius:5px;
+        background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+        white-space:nowrap;display:inline-flex;align-items:center;gap:5px}
+  .chip b{color:var(--txt);font-weight:600}
+  .chip.live{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 35%,transparent)}
+  .chip.warn{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 35%,transparent)}
+  .chip.err{color:var(--fire);border-color:color-mix(in srgb,var(--fire) 40%,transparent)}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--faint);transition:.15s}
+  .dot.on{background:var(--gate);box-shadow:0 0 9px var(--gate)}
+
+  .floor{font-family:var(--mono);font-size:10.5px;padding:3px 9px;border-radius:5px;
+         border:1px solid var(--line);background:var(--panel2);white-space:nowrap}
+  .floor b{font-weight:680}
+  .floor.me b{color:var(--me)} .floor.them b{color:var(--them)}
+  .floor.silence b{color:var(--faint)} .floor.overlap b{color:var(--fire)}
+
+  button.btn{font-family:var(--mono);font-size:10.5px;padding:4px 9px;border-radius:5px;
+        background:var(--panel2);border:1px solid var(--line);color:var(--dim);
+        cursor:pointer;white-space:nowrap}
+  button.btn:hover{border-color:var(--gate);color:var(--txt)}
+  button.btn[aria-pressed="true"]{color:var(--gate);border-color:var(--gate);
+        background:color-mix(in srgb,var(--gate) 12%,transparent)}
+  button.btn.paused{color:var(--warn);border-color:var(--warn)}
+
+  /* ── main ───────────────────────────────────────────────── */
+  main{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 336px;min-height:0}
+  @media (max-width:1040px){ main{grid-template-columns:minmax(0,1fr) 280px} }
+  @media (max-width:820px){
+    main{grid-template-columns:minmax(0,1fr)}
+    .cards{display:none}
+    body.show-cards .scopes{display:none}
+    body.show-cards .cards{display:flex}
+  }
+
+  .scopes{overflow-y:auto;padding:6px 6px 14px 12px}
+  .grp{display:flex;align-items:center;gap:8px;margin:12px 0 4px 2px;cursor:pointer;
+       user-select:none}
+  .grp h2{font-family:var(--mono);font-size:9.5px;letter-spacing:.17em;color:var(--faint);
+          text-transform:uppercase;margin:0;font-weight:600}
+  .grp .caret{color:var(--faint);font-size:9px;transition:transform .15s}
+  .grp.collapsed .caret{transform:rotate(-90deg)}
+  .grp:hover h2{color:var(--dim)}
+  .grpbody.collapsed{display:none}
+
+  .row{display:grid;grid-template-columns:184px minmax(0,1fr) 62px;gap:10px;
+       align-items:center;padding:2px 6px;border-radius:7px;cursor:pointer;
+       border:1px solid transparent}
+  .row:hover{background:var(--panel2)}
+  .row.latched{background:color-mix(in srgb,var(--fire) 7%,transparent);
+               border-color:color-mix(in srgb,var(--fire) 26%,transparent)}
+  .row.dimmed{opacity:.28}
+  .row.unreliable .nm{text-decoration:line-through;text-decoration-color:var(--warn)}
+  .nm{font-family:var(--mono);font-size:11px;min-width:0}
+  .nm .t{display:flex;align-items:center;gap:6px;overflow:hidden;
+         text-overflow:ellipsis;white-space:nowrap}
+  .nm .sq{width:5px;height:5px;border-radius:1.5px;flex:none}
+  .nm .meta{color:var(--faint);font-size:9px;margin-left:11px;white-space:nowrap;
+            overflow:hidden;text-overflow:ellipsis}
+  canvas.scope{width:100%;height:var(--row);display:block}
+  .val{font-family:var(--mono);font-size:12.5px;text-align:right;line-height:1.25}
+  .val .sub{display:block;font-size:8.5px;color:var(--faint)}
+
+  .detail{grid-column:1/-1;margin:2px 0 8px;padding:10px 12px;border-radius:7px;
+          background:var(--panel2);border:1px solid var(--line);font-size:11.5px}
+  .detail p{margin:0 0 9px;color:var(--dim);line-height:1.5;max-width:70ch}
+  .detail .facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));
+                 gap:9px 16px;font-family:var(--mono);font-size:10px}
+  .detail .fact{min-width:0}
+  .detail .fact .k{display:block;color:var(--faint);font-size:8.5px;letter-spacing:.09em;
+                   text-transform:uppercase;white-space:nowrap;overflow:hidden;
+                   text-overflow:ellipsis}
+  .detail .fact .v{display:block;margin-top:2px;color:var(--txt);white-space:nowrap}
+  .detail .fact.flag .v{color:var(--warn)}
+
+  /* ── cards ──────────────────────────────────────────────── */
+  .cards{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;
+         padding:10px;display:flex;flex-direction:column;gap:8px}
+  .cards-h{display:flex;align-items:center;justify-content:space-between;flex:none}
+  .cards-h span{font-family:var(--mono);font-size:9.5px;letter-spacing:.17em;
+                color:var(--faint);text-transform:uppercase}
+  .card{border:1px solid var(--line);border-left:2px solid var(--dim);border-radius:7px;
+        padding:9px 11px;background:var(--panel2);animation:slide .22s ease-out;
+        cursor:default}
+  @keyframes slide{from{opacity:0;transform:translateX(12px)}to{opacity:1;transform:none}}
+  .card.alert{border-left-color:var(--fire)}
+  .card.nudge{border-left-color:var(--warn)}
+  .card.info{border-left-color:var(--ok)}
+  .card:hover{border-color:var(--line2)}
+  .card h4{margin:0 0 4px;font-size:12.5px;font-weight:640}
+  .card p{margin:0;color:var(--dim);font-size:11.5px;line-height:1.45}
+  .ev{margin-top:7px;display:flex;flex-wrap:wrap;gap:4px}
+  .ev span{font-family:var(--mono);font-size:8.5px;color:var(--faint);
+           background:color-mix(in srgb,var(--txt) 6%,transparent);
+           padding:1px 5px;border-radius:3px}
+  .empty{color:var(--faint);font-size:11.5px;line-height:1.65;padding:12px 4px}
+  .empty b{color:var(--dim);font-weight:600}
+
+  /* ── footer ─────────────────────────────────────────────── */
+  footer{flex:none;border-top:1px solid var(--line);background:var(--panel)}
+  .timeline{height:26px;position:relative;border-bottom:1px solid var(--line);
+            padding:0 12px;display:flex;align-items:center}
+  .tlbar{position:relative;height:3px;width:100%;background:var(--line);border-radius:2px}
+  .tlmark{position:absolute;top:-4px;width:2px;height:11px;border-radius:1px;cursor:pointer}
+  .tlmark:hover{transform:scaleX(2.2)}
+  .tlnow{position:absolute;top:-5px;width:1px;height:13px;background:var(--dim)}
+  .meter{display:flex;gap:6px;padding:7px 12px;flex-wrap:wrap;align-items:center}
+  .tick{padding:6px 12px;border-top:1px solid var(--line);font-family:var(--mono);
+        font-size:11px;min-height:28px;display:flex;gap:16px;overflow:hidden}
+  .tick .u{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 auto}
+  .tick .sp{font-weight:680}
+  .tick .sp.ME{color:var(--me)} .tick .sp.THEM{color:var(--them)}
+  .tick .sp.SILENCE{color:var(--faint)}
+  .tick .body{color:var(--dim)}
+
+  /* ── help ───────────────────────────────────────────────── */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;
+         align-items:center;justify-content:center;z-index:20;padding:20px}
+  .scrim.open{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line2);border-radius:11px;
+         padding:20px 24px;max-width:460px;width:100%}
+  .modal h3{margin:0 0 3px;font-size:14px}
+  .modal .sub{color:var(--faint);font-size:11px;margin:0 0 15px}
+  .modal dl{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;margin:0;
+            font-size:11.5px;align-items:baseline}
+  .modal dt{font-family:var(--mono);font-size:10px;color:var(--gate);
+            background:var(--panel2);padding:2px 6px;border-radius:4px;
+            border:1px solid var(--line);text-align:center}
+  .modal dd{margin:0;color:var(--dim)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">THAL<span>A</span>MUS</div>
+  <div class="tagline">the model decides <i>when</i> &middot; your code decides <i>what</i></div>
+  <div class="hgroup">
+    <div class="floor" id="floor">floor <b>—</b></div>
+    <button class="btn" id="b-pause" title="Freeze the scope (space)">⏸ hold</button>
+    <button class="btn" id="b-smooth" aria-pressed="true" title="Smoothing (s)">smoothing</button>
+    <button class="btn" id="b-raw" aria-pressed="true" title="Raw overlay (r)">raw</button>
+    <button class="btn" id="b-export" title="Download session JSON (e)">export</button>
+    <button class="btn" id="b-theme" title="Theme (t)">◐</button>
+    <button class="btn" id="b-help" title="Shortcuts (?)">?</button>
+  </div>
+</header>
+
+<main>
+  <div class="scopes" id="scopes"></div>
+  <div class="cards">
+    <div class="cards-h"><span>interrupts</span><span id="ccount"></span></div>
+    <div id="cardlist"></div>
+    <div class="empty" id="empty">
+      Nothing yet — <b>which is the normal state.</b><br><br>
+      About one tick in a hundred produces a card. A channel has to cross its
+      trigger band <i>and</i> hold there long enough to not be noise.<br><br>
+      Hit <b>smoothing</b> to see the raw per-tick model output underneath. That
+      mess is what the signal layer is filtering.
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="timeline"><div class="tlbar" id="tlbar"></div></div>
+  <div class="meter" id="meter"></div>
+  <div class="tick" id="transcript"><span class="u body">waiting for audio…</span></div>
+</footer>
+
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <h3>Keyboard</h3>
+    <p class="sub">A scope you cannot freeze is a scope you cannot read.</p>
+    <dl>
+      <dt>space</dt><dd>Hold / resume the scope. Data keeps arriving.</dd>
+      <dt>s</dt><dd>Smoothing on/off — off shows the raw model output</dd>
+      <dt>r</dt><dd>Raw overlay under each smoothed trace</dd>
+      <dt>c</dt><dd>Collapse or expand every channel group</dd>
+      <dt>e</dt><dd>Export the session as JSON</dd>
+      <dt>t</dt><dd>Light / dark</dd>
+      <dt>esc</dt><dd>Close this, or any open channel detail</dd>
+    </dl>
+  </div>
+</div>
+
+<script>
+"use strict";
+const WINDOW_S = 40, MAXPTS = 600;
+const buf = new Map(), rows = new Map(), seen = new Set();
+let lastFrame = null, cards = [], paused = false, opened = null, hover = null;
+let smooth = true, showRaw = true;
+
+const S = {
+  get(k, d){ try{ const v = localStorage.getItem("thal:"+k); return v===null?d:JSON.parse(v); }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem("thal:"+k, JSON.stringify(v)); }catch{} },
+};
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// Canvas 2D resolves neither CSS variables nor color-mix(), so every colour
+// that reaches a fillStyle has to be turned into a literal rgba() first.
+const _rgbaCache = new Map();
+function rgba(varName, alpha){
+  const key = varName + "|" + alpha + "|" + document.documentElement.dataset.theme;
+  const hit = _rgbaCache.get(key);
+  if (hit) return hit;
+  let hex = css(varName).replace("#", "");
+  if (hex.length === 3) hex = hex.split("").map(c => c + c).join("");
+  const n = parseInt(hex, 16);
+  const out = Number.isNaN(n)
+    ? `rgba(128,128,128,${alpha})`
+    : `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+  _rgbaCache.set(key, out);
+  return out;
+}
+const $ = id => document.getElementById(id);
+
+/* ── chrome ─────────────────────────────────────────────── */
+function setTheme(t){
+  document.documentElement.dataset.theme = t;
+  S.set("theme", t);
+  _rgbaCache.clear();
+  redrawAll();
+}
+setTheme(S.get("theme", "dark"));
+smooth = S.get("smooth", true); showRaw = S.get("raw", true);
+
+function toggle(btn, val, key){ btn.setAttribute("aria-pressed", String(val)); S.set(key, val); }
+toggle($("b-smooth"), smooth, "smooth"); toggle($("b-raw"), showRaw, "raw");
+
+$("b-smooth").onclick = () => { smooth = !smooth; toggle($("b-smooth"), smooth, "smooth"); redrawAll(); };
+$("b-raw").onclick    = () => { showRaw = !showRaw; toggle($("b-raw"), showRaw, "raw"); redrawAll(); };
+$("b-theme").onclick  = () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+$("b-help").onclick   = () => $("scrim").classList.toggle("open");
+$("scrim").onclick    = e => { if (e.target.id === "scrim") $("scrim").classList.remove("open"); };
+$("b-export").onclick = exportSession;
+$("b-pause").onclick  = togglePause;
+
+function togglePause(){
+  paused = !paused;
+  const b = $("b-pause");
+  b.textContent = paused ? "▶ live" : "⏸ hold";
+  b.classList.toggle("paused", paused);
+  if (!paused && lastFrame) render(lastFrame);
+}
+
+addEventListener("keydown", e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === " "){ e.preventDefault(); togglePause(); }
+  else if (k === "s") $("b-smooth").click();
+  else if (k === "r") $("b-raw").click();
+  else if (k === "t") $("b-theme").click();
+  else if (k === "e") exportSession();
+  else if (k === "c") document.querySelectorAll(".grp").forEach(g => g.click());
+  else if (k === "?") $("b-help").click();
+  else if (k === "escape"){ $("scrim").classList.remove("open"); closeDetail(); }
+});
+
+/* ── layout ─────────────────────────────────────────────── */
+const GROUPS = {
+  gate: ["gate", "every tick — cheap, and decides whether the bank runs"],
+  bank: ["bank", "only when the gate opens — the full read"],
+};
+
+function buildLayout(traces){
+  const host = $("scopes");
+  host.innerHTML = "";
+  for (const [tier, [label, blurb]] of Object.entries(GROUPS)){
+    const keys = Object.keys(traces).filter(k => traces[k].tier === tier);
+    if (!keys.length) continue;
+    const head = document.createElement("div");
+    head.className = "grp";
+    head.innerHTML = `<span class="caret">▾</span><h2>${label} · ${keys.length} traces</h2>
+                      <span style="color:var(--faint);font-size:9.5px">${blurb}</span>`;
+    const body = document.createElement("div");
+    body.className = "grpbody";
+    if (S.get("collapsed:"+tier, false)){ head.classList.add("collapsed"); body.classList.add("collapsed"); }
+    head.onclick = () => {
+      const c = head.classList.toggle("collapsed");
+      body.classList.toggle("collapsed", c);
+      S.set("collapsed:"+tier, c);
+      redrawAll();
+    };
+    host.append(head, body);
+    for (const k of keys) body.appendChild(makeRow(k, traces[k]));
+  }
+}
+
+function makeRow(key, tr){
+  const row = document.createElement("div");
+  row.className = "row";
+  const colour = tr.tier === "gate" ? "var(--gate)" : "var(--bank)";
+  row.innerHTML = `
+    <div class="nm">
+      <div class="t"><span class="sq" style="background:${colour}"></span>${tr.label}</div>
+      <div class="meta"></div>
+    </div>
+    <canvas class="scope"></canvas>
+    <div class="val"><span class="v">—</span><span class="sub"></span></div>`;
+  row.onclick = () => openDetail(key);
+  row.onmouseenter = () => { hover = key; };
+  row.onmouseleave = () => { hover = null; };
+  rows.set(key, {
+    el: row, canvas: row.querySelector("canvas"),
+    v: row.querySelector(".v"), sub: row.querySelector(".sub"),
+    meta: row.querySelector(".meta"),
+  });
+  return row;
+}
+
+/* ── detail ─────────────────────────────────────────────── */
+function closeDetail(){
+  document.querySelectorAll(".detail").forEach(d => d.remove());
+  opened = null;
+}
+function openDetail(key){
+  const was = opened;
+  closeDetail();
+  if (was === key) return;
+  opened = key;
+  const tr = lastFrame?.traces[key]; if (!tr) return;
+  const r = rows.get(key);
+  const d = document.createElement("div");
+  d.className = "detail";
+  const pol = tr.polarity === "low" ? "collapse" : "climb";
+  const fields = [
+    ["fires on", pol], ["fire", tr.fire], ["release", tr.release],
+    ["τ smoothing", tr.tau + "s"], ["dwell", tr.dwell + "s"],
+    ["accuracy", tr.accuracy], ["tier", tr.tier],
+    ["fired", tr.fire_count + "×"],
+    ["slope", (tr.slope >= 0 ? "+" : "") + tr.slope.toFixed(3) + "/s"],
+    ["disagreement", tr.disagreement === null ? "—" : tr.disagreement.toFixed(3)],
+    ["state", tr.unreliable ? "ill-posed" : (!tr.warm ? "warming" : (tr.latched ? "latched" : "armed"))],
+  ];
+  const flagged = new Set(["state", "disagreement"]);
+  d.innerHTML = `<p>${tr.why || ""}</p><div class="facts">` +
+    fields.map(([k, v]) => {
+      const warn = flagged.has(k) && (tr.unreliable || !tr.warm);
+      return `<div class="fact${warn ? " flag" : ""}">` +
+             `<span class="k">${k}</span><span class="v">${v}</span></div>`;
+    }).join("") + `</div>`;
+  r.el.after(d);
+}
+
+/* ── drawing ────────────────────────────────────────────── */
+function draw(key, tr){
+  const r = rows.get(key); if (!r || !r.el.offsetParent) return;
+  const c = r.canvas, dpr = devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;
+  if (c.width !== w * dpr || c.height !== h * dpr){ c.width = w * dpr; c.height = h * dpr; }
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+
+  const pts = buf.get(key) || []; if (!pts.length) return;
+  const now = pts[pts.length - 1].t;
+  // Until the buffer spans a full window, range over what we have. A fresh
+  // page load otherwise draws a stub in the right-hand third and reads as
+  // broken rather than as "new".
+  const span = Math.max(Math.min(WINDOW_S, now - pts[0].t), 3);
+  const t0 = now - span;
+  const X = t => (t - t0) / span * w, Y = v => h - v * h;
+
+  const lo = Math.min(tr.fire, tr.release), hi = Math.max(tr.fire, tr.release);
+  g.fillStyle = rgba("--fire", 0.07);
+  if (tr.polarity === "low") g.fillRect(0, Y(tr.fire), w, h - Y(tr.fire));
+  else g.fillRect(0, 0, w, Y(tr.fire));
+  g.fillStyle = rgba("--txt", 0.045);
+  g.fillRect(0, Y(hi), w, Y(lo) - Y(hi));
+
+  g.setLineDash([3, 3]); g.lineWidth = 1;
+  g.strokeStyle = rgba("--fire", 0.55);
+  g.beginPath(); g.moveTo(0, Y(tr.fire)); g.lineTo(w, Y(tr.fire)); g.stroke();
+  g.strokeStyle = rgba("--txt", 0.16);
+  g.beginPath(); g.moveTo(0, Y(tr.release)); g.lineTo(w, Y(tr.release)); g.stroke();
+  g.setLineDash([]);
+
+  const colour = tr.tier === "gate" ? css("--gate") : css("--bank");
+  if (showRaw && smooth){
+    g.strokeStyle = colour; g.globalAlpha = .26; g.lineWidth = 1; g.beginPath();
+    pts.forEach((p, i) => { const x = X(p.t), y = Y(p.raw); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+    g.stroke(); g.globalAlpha = 1;
+  }
+  g.strokeStyle = colour; g.lineWidth = 1.8; g.lineJoin = "round"; g.beginPath();
+  pts.forEach((p, i) => { const x = X(p.t), y = Y(smooth ? p.ema : p.raw); i ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.stroke();
+
+  const last = pts[pts.length - 1];
+  g.fillStyle = colour; g.beginPath();
+  g.arc(X(last.t), Y(smooth ? last.ema : last.raw), 2.3, 0, 7); g.fill();
+}
+
+function redrawAll(){ if (lastFrame) for (const [k, tr] of Object.entries(lastFrame.traces)) draw(k, tr); }
+
+/* ── panels ─────────────────────────────────────────────── */
+function updateFloor(traces){
+  const opts = [["me", "ME"], ["silence", "SILENCE"], ["overlap", "OVERLAP"]];
+  let best = "them", bestV = 0.42;   // `them` is the implicit fourth option
+  for (const [k] of opts){
+    const t = traces["floor:" + k];
+    if (t && t.ema !== null && t.ema > bestV){ bestV = t.ema; best = k; }
+  }
+  const el = $("floor");
+  el.className = "floor " + best;
+  el.innerHTML = `floor <b>${best === "me" ? "YOU" : best.toUpperCase()}</b>`;
+}
+
+function updateMeter(m, f){
+  const near = m.req_limit_pct > 60 || m.tok_limit_pct > 60;
+  const save = m.gate_saving ?? 0;
+  const items = [
+    ["$/hr", m.dollars_per_hour.toFixed(2), m.dollars_per_hour > 3 ? "warn" : "live"],
+    ["spent", "$" + m.spent.toFixed(5), ""],
+    ["latency", `p50 ${m.p50_ms}ms · p95 ${m.p95_ms}ms`, ""],
+    ["gate", `${(m.gate_open_rate * 100).toFixed(0)}% open`, ""],
+    ["2-stage", (save >= 0 ? "+" : "") + (save * 100).toFixed(0) + "% tokens",
+      save > 0 ? "live" : "warn"],
+    ["tok/s", Math.round(m.tokens_per_sec), ""],
+    ["limits", `${m.req_limit_pct}% req · ${m.tok_limit_pct}% tok`, near ? "warn" : ""],
+    ["calls", m.calls, ""],
+    ["dropped", m.dropped_ticks ?? 0, (m.dropped_ticks ?? 0) > 0 ? "warn" : ""],
+    ["uptime", m.uptime_s.toFixed(0) + "s", ""],
+    ["backend", f.backend, f.backend === "mock" ? "warn" : "live"],
+    ["model", f.model, ""],
+    [f.calibrated ? "calibrated" : "uncalibrated", f.calibrated ? "isotonic" : "nominal bands",
+      f.calibrated ? "live" : "warn"],
+  ];
+  if (m.errors) items.push(["errors", m.errors, "err"]);
+  $("meter").innerHTML = items.map(([k, v, c]) =>
+    `<div class="chip ${c}">${k} <b>${v}</b></div>`).join("");
+}
+
+const SEV = { alert: "var(--fire)", nudge: "var(--warn)", info: "var(--ok)" };
+
+function addCards(list, tNow){
+  if (!list.length) return;
+  $("empty").style.display = "none";
+  const host = $("cardlist");
+  for (const c of list){
+    const id = c.rule + "@" + c.tick;
+    if (seen.has(id)) continue;
+    seen.add(id); cards.push(c);
+    const ev = Object.entries(c.evidence)
+      .map(([k, v]) => `<span>${k} ${v.toFixed(2)}</span>`).join("");
+    const d = document.createElement("div");
+    d.className = "card " + c.severity;
+    d.innerHTML = `<h4>${c.title}</h4><p>${c.body}</p>
+      <div class="ev"><span>t+${c.t.toFixed(1)}s</span><span>tick ${c.tick}</span>${ev}</div>`;
+    // Hovering a card dims every channel that did not contribute to it.
+    const keys = Object.keys(c.evidence);
+    d.onmouseenter = () => rows.forEach((r, k) => r.el.classList.toggle("dimmed", !keys.includes(k)));
+    d.onmouseleave = () => rows.forEach(r => r.el.classList.remove("dimmed"));
+    host.prepend(d);
+    while (host.children.length > 40) host.lastChild.remove();
+  }
+  $("ccount").textContent = `${cards.length} · ${(cards.length / Math.max(tNow, 1) * 60).toFixed(1)}/min`;
+}
+
+function drawTimeline(tNow){
+  const bar = $("tlbar"), span = Math.max(tNow, 30);
+  bar.innerHTML = cards.map(c => {
+    const pct = Math.min(c.t / span * 100, 100);
+    return `<div class="tlmark" style="left:${pct}%;background:${SEV[c.severity] || "var(--dim)"}"
+             title="t+${c.t.toFixed(1)}s — ${c.title}"></div>`;
+  }).join("") + `<div class="tlnow" style="left:100%"></div>`;
+}
+
+function updateTranscript(lines){
+  $("transcript").innerHTML = lines.slice(-3).map(l => {
+    const i = l.indexOf(":");
+    const sp = i < 0 ? "" : l.slice(0, i).trim();
+    const body = i < 0 ? l : l.slice(i + 1);
+    return `<span class="u"><span class="sp ${sp}">${sp}</span><span class="body">${body}</span></span>`;
+  }).join("");
+}
+
+/* ── export ─────────────────────────────────────────────── */
+function exportSession(){
+  if (!lastFrame) return;
+  const payload = {
+    exported_at: new Date().toISOString(),
+    backend: lastFrame.backend, model: lastFrame.model,
+    calibrated: lastFrame.calibrated, elapsed_s: lastFrame.t,
+    meter: lastFrame.meter, cards,
+    traces: Object.fromEntries(Object.entries(lastFrame.traces).map(([k, tr]) => [k, {
+      spec: { fire: tr.fire, release: tr.release, polarity: tr.polarity,
+              tau: tr.tau, dwell: tr.dwell, accuracy: tr.accuracy, tier: tr.tier },
+      fire_count: tr.fire_count,
+      series: (buf.get(k) || []).map(p => [+p.t.toFixed(2), +p.raw.toFixed(4), +p.ema.toFixed(4)]),
+    }])),
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)],
+    { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `thalamus-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ── frame ──────────────────────────────────────────────── */
+function render(f){
+  for (const [k, tr] of Object.entries(f.traces)){ if (tr.ema === null) continue;
+    const r = rows.get(k); if (!r) continue;
+    r.el.classList.toggle("latched", tr.latched);
+    r.el.classList.toggle("unreliable", tr.unreliable);
+    const shown = smooth ? tr.ema : (tr.raw ?? tr.ema);
+    r.v.textContent = shown.toFixed(2);
+    r.v.style.color = tr.latched ? css("--fire") : css("--txt");
+    r.sub.textContent = tr.unreliable ? "ill-posed"
+      : (!tr.warm ? "warming" : (tr.fire_count ? tr.fire_count + "×" : ""));
+    r.meta.textContent =
+      `${tr.polarity === "low" ? "collapse" : "climb"} · τ${tr.tau}s` +
+      (tr.dwell ? ` · ${tr.dwell}s dwell` : "");
+    draw(k, tr);
+  }
+  updateFloor(f.traces);
+  updateMeter(f.meter, f);
+  drawTimeline(f.t);
+  updateTranscript(f.transcript);
+}
+
+async function backfill(){
+  try {
+    const r = await fetch("/session");
+    const { cards: past } = await r.json();
+    if (past?.length) addCards(past, lastFrame?.t ?? 1);
+  } catch { /* history is a nicety; the live stream is the product */ }
+}
+
+let es;
+function connect(){
+  es = new EventSource("/stream");
+  es.onopen = () => { const c = $("meter").firstChild; if (c) c.classList.remove("err"); };
+  es.onmessage = ev => {
+    const f = JSON.parse(ev.data);
+    lastFrame = f;
+    if (!rows.size){ buildLayout(f.traces); backfill(); }
+    for (const [k, tr] of Object.entries(f.traces)){
+      if (tr.ema === null) continue;
+      if (!buf.has(k)) buf.set(k, []);
+      const arr = buf.get(k);
+      arr.push({ t: f.t, raw: tr.raw ?? tr.ema, ema: tr.ema });
+      if (arr.length > MAXPTS) arr.shift();
+    }
+    addCards(f.cards, f.t);   // cards land even while held; only drawing freezes
+    if (!paused) render(f);
+  };
+  es.onerror = () => {
+    $("meter").insertAdjacentHTML("afterbegin",
+      '<div class="chip err">stream <b>reconnecting…</b></div>');
+  };
+}
+connect();
+addEventListener("resize", () => { clearTimeout(window._rz); window._rz = setTimeout(redrawAll, 120); });
+</script>
+</body>
+</html>

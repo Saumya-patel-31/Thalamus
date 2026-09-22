@@ -1,0 +1,13 @@
+__pycache__/
+*.egg-info/
+.venv/
+build/
+dist/
+
+# Fitted artefacts and captured sessions. Recordings contain transcript text --
+# they are a recording of a real conversation. Keep them out of git.
+calibration.json
+recordings/
+session*.jsonl
+*.session.jsonl
+*.jsonl.tmp

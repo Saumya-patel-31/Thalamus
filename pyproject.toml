@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "thalamus"
+version = "0.1.0"
+description = "A semantic interrupt controller. Jev decides when; your code decides what."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []          # stdlib only. on purpose.
+
+[project.optional-dependencies]
+# Live capture only. Calibration fitting needs nothing extra: isotonic
+# regression is implemented with pool-adjacent-violators in calibration.py
+# rather than pulling in scikit-learn.
+mic = ["websockets>=12", "sounddevice>=0.4"]
+
+[project.scripts]
+thalamus = "thalamus.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["thalamus*"]
+
+[tool.setuptools.package-data]
+thalamus = ["hud/*.html"]
