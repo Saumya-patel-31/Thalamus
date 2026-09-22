@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import queue
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -121,6 +122,24 @@ def make_server(bus: Broadcaster, host: str = "127.0.0.1", port: int = 8777):
             finally:
                 bus.unsubscribe(q)
 
-    server = ThreadingHTTPServer((host, port), Handler)
-    server.daemon_threads = True
-    return server
+    class Server(ThreadingHTTPServer):
+        daemon_threads = True
+        # A browser tab closing, reloading, or being backgrounded resets the
+        # socket, and socketserver's default handler prints a full traceback
+        # for it. On an SSE stream held open for the length of a call that is
+        # not an error at all -- it is how every session ends -- and it buries
+        # the actual log under noise. Swallow the disconnect family; let
+        # anything genuinely broken through.
+        QUIET = (
+            ConnectionResetError,
+            ConnectionAbortedError,
+            BrokenPipeError,
+            TimeoutError,
+        )
+
+        def handle_error(self, request, client_address):
+            if isinstance(sys.exc_info()[1], self.QUIET):
+                return
+            super().handle_error(request, client_address)
+
+    return Server((host, port), Handler)

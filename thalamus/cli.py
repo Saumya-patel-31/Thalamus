@@ -219,6 +219,14 @@ def _budget(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # These commands run for the length of a call, so a piped or redirected
+    # stdout must not sit in a block buffer -- you would see nothing at all
+    # until the buffer filled, and conclude it had hung.
+    try:
+        sys.stdout.reconfigure(line_buffering=True)
+    except (AttributeError, ValueError):
+        pass
+
     p = argparse.ArgumentParser(
         prog="thalamus",
         description="A semantic interrupt controller. The model decides when; "

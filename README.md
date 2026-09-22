@@ -369,6 +369,7 @@ python3 tests/test_dsp.py          # 20 — the signal layer, exactly
 python3 tests/test_integration.py  #  7 — the whole pipeline, on a virtual clock
 python3 tests/test_sources.py      #  7 — speaker merge, reconnect, device naming
 python3 tests/test_record.py       #  8 — stratified capture, atomic labelling
+python3 tests/test_hud.py          #  5 — SSE transport under hard disconnects
 ```
 
 The integration tests replay 116 seconds of conversation in about a second by
